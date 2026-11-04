@@ -83,6 +83,9 @@ int main()
     bool  enemyAlive = true;            // 是否还在场上（到终点或被消灭后变 false）
     float stepTimer  = 0.f;             // "走格计时器"：攒时间用，见下面主循环的说明
     const float STEP_TIME = 1.0f;       // 每走一格要花几秒（调大走得慢、调小走得快）
+    int direction = 0; // 0,1,2,3,4不动，上,右,下,左
+    std::vector<int> plan = {4,4,4,1,4,4,3,4,4,1,4};
+    
     // ╔════════════════ 待完成：定义变量 ════════════════╗
     // 如果你需要定义额外变量来实现移动逻辑，就定义在这里
     // ╚════════════════ 定义变量到此为止 ════════════════╝
@@ -130,6 +133,7 @@ int main()
         {
             stepTimer += dt;                     // 把这一帧的时间攒进计时器
             shouldMove = (stepTimer >= STEP_TIME); // 攒够 1 秒 → 走一格
+            shouldMove = stepTimer>STEP_TIME;
         }
 
         if (shouldMove)
@@ -142,12 +146,31 @@ int main()
                 --remainingEnemies;
                 shouldMove = false;
             }
+            switch (direction)
+            {
+            case 1:
+                enemyRow--;
+                break;
+            case 2:
+                enemyCol++;
+                break;
+            case 3:
+                enemyRow++;
+                break;
+            case 4:
+                enemyCol--;
+                break;
+            default:
+                break;
+            }
+            plan.pop_back();
+            direction = plan[0];
         }
 
         if (shouldMove) // 进行移动
         {
             // ╔════════════════ 待完成：移动代码 ════════════════╗
-
+            
             // ╚════════════════ 移动代码到此为止 ════════════════╝
         }
 
