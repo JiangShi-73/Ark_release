@@ -65,6 +65,31 @@ void generate_path(std::vector<std::vector<std::pair<int,int>>>& paths,std::vect
     std::pair<int,int> now=zuobiao,up={zuobiao.first,zuobiao.second+1},right={zuobiao.first+1,zuobiao.second},left={zuobiao.first-1,zuobiao.second},down={zuobiao.first-1,zuobiao.second};
     std::vector<std::string>& change_map = map;
     around = {up,right,down,left};
+    void deep_find(std::pair<int,int>& zuobiao,std::pair<int,int>& destiny,std::vector<std::string>& map,std::vector<std::pair<int,int>> possible)
+    {
+        if(std::find(paths.begin(),paths.end(),p1)!=paths.end()&&now == destiny)
+        paths.push_back(p1);
+        else
+        {
+        up={now.first,now.second-1},right={now.first+1,now.second},left={now.first-1,now.second},down={now.first,now.second+1};
+        around = {up,right,down,left};
+        std::vector<std::pair<int,int>> v1;
+        for(int i = 0;i<4;i++)
+        {   
+            if((around[i].first>right_range||around[i].first<left_range)||(around[i].second>down_range||around[i].second<up_range))
+            continue;
+            else
+            {
+                auto dot =change_map[around[i].first][around[i].second];
+                if(dot=='S'||dot=='#'||dot=='P'||dot=='X')
+                continue;
+                v1.push_back(around[i]);
+                
+            }
+        }
+        
+        }
+    }
     while(now!=destiny)
     {
         up={now.first,now.second+1},right={now.first+1,now.second},left={now.first-1,now.second},down={now.first-1,now.second};
@@ -86,8 +111,7 @@ void generate_path(std::vector<std::vector<std::pair<int,int>>>& paths,std::vect
         
         
     }
-    if(std::find(paths.begin(),paths.end(),p1)!=paths.end()&&now == destiny)
-    paths.push_back(p1);
+    
 }
 int main()
 {
