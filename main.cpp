@@ -24,6 +24,9 @@
 #include <vector>
 #include <string>
 #include <iostream>
+#include <algorithm>
+#include <random>
+
 
 
 // ---------- 常量（棋盘尺寸等固定配置）----------
@@ -48,6 +51,44 @@ void drawGameOver(sf::RenderWindow& win, bool victory);
 // ============================================================
 //  上半部分 · main()：游戏数据 + 你要写的代码
 // ============================================================
+int fastRand(int lo, int hi)
+{
+    static std::mt19937 gen(std::random_device{}());
+    std::uniform_int_distribution<int> dist(lo, hi);
+    return dist(gen);
+}
+void generate_path(std::vector<std::vector<std::pair<int,int>>>& paths,std::vector<std::string>& map,std::pair<int,int>& zuobiao,std::pair<int,int>& destiny)
+{
+    int right_range = map[0].length(),left_range = 0,up_range = 0,down_range = map.size();
+
+    std::vector<std::pair<int,int>> p1 , around;
+    std::pair<int,int> now=zuobiao,up={zuobiao.first,zuobiao.second+1},right={zuobiao.first+1,zuobiao.second},left={zuobiao.first-1,zuobiao.second},down={zuobiao.first-1,zuobiao.second};
+    std::vector<std::string>& change_map = map;
+    around = {up,right,down,left};
+    while(now!=destiny)
+    {
+        up={now.first,now.second+1},right={now.first+1,now.second},left={now.first-1,now.second},down={now.first-1,now.second};
+        around = {up,right,down,left};
+        int allowed_dir[4] = {0,0,0,0},count = 0;
+        for(int i = 0;i<4;i++)
+        {   
+            if((around[i].first>right_range||around[i].first<left_range)||(around[i].second>down_range||around[i].second<up_range))
+            continue;
+            else
+            {
+                if(change_map[around[i].first][around[i].second]=='S'||'#'||'P'||'X')
+                continue;
+                allowed_dir[i]=1;
+                count++;
+            }
+        }
+        if(count == 0)
+        
+        
+    }
+    if(std::find(paths.begin(),paths.end(),p1)!=paths.end()&&now == destiny)
+    paths.push_back(p1);
+}
 int main()
 {
     // 开一个窗口，并把刷新上限设成每秒 60 帧（下面主循环会解释"帧"是什么）。
@@ -64,6 +105,7 @@ int main()
     //     'S' 出怪口     'E' 终点（蓝门，敌人想去的地方）
     //     '#' 道路（敌人能走的地面）
     //     'P' 高台 / '.' 障碍  ——  敌人都【不能】走（'P' 将来用来放远程干员，是后面任务的事）
+    //     'X'敌人已经走过一次
     std::vector<std::string> map = {
         ".PPPPPPP.",
         "E#P#####.",
@@ -84,7 +126,8 @@ int main()
     float stepTimer  = 0.f;             // "走格计时器"：攒时间用，见下面主循环的说明
     const float STEP_TIME = 1.0f;       // 每走一格要花几秒（调大走得慢、调小走得快）
     int direction = 0; // 0,1,2,3,4不动，上,右,下,左
-    std::vector<int> plan = {4,4,4,1,4,4,3,4,4,1,4};
+    std::vector<std::vector<int>> plans;
+
     
     // ╔════════════════ 待完成：定义变量 ════════════════╗
     // 如果你需要定义额外变量来实现移动逻辑，就定义在这里
@@ -146,6 +189,12 @@ int main()
                 --remainingEnemies;
                 shouldMove = false;
             }
+            
+        }
+
+        if (shouldMove) // 进行移动
+        {
+            // ╔════════════════ 待完成：移动代码 ════════════════╗
             switch (direction)
             {
             case 1:
@@ -165,12 +214,6 @@ int main()
             }
             plan.pop_back();
             direction = plan[0];
-        }
-
-        if (shouldMove) // 进行移动
-        {
-            // ╔════════════════ 待完成：移动代码 ════════════════╗
-            
             // ╚════════════════ 移动代码到此为止 ════════════════╝
         }
 
