@@ -186,7 +186,7 @@ int main()
     const std::vector<int> task3Plan = toDirections(walkAll);
 
     // 当前默认运行任务 1；把 activeTask 改成 2 或 3 可分别验收另外两项。
-    const int activeTask = 1;
+    const int activeTask = 3;
     const std::vector<int>& plan = activeTask == 1 ? task1Plan : activeTask == 2 ? task2Plan : task3Plan;
 
     // ╔════════════════ 待完成：定义变量 ════════════════╗
