@@ -25,7 +25,8 @@
 #include <string>
 #include <iostream>
 #include <algorithm>
-#include <random>
+#include <queue>
+#include <functional>
 
 
 
@@ -51,44 +52,8 @@ void drawGameOver(sf::RenderWindow& win, bool victory);
 // ============================================================
 //  上半部分 · main()：游戏数据 + 你要写的代码
 // ============================================================
-int fastRand(int lo, int hi)
-{
-    static std::mt19937 gen(std::random_device{}());
-    std::uniform_int_distribution<int> dist(lo, hi);
-    return dist(gen);
-}
-void generate_path(std::vector<std::vector<std::pair<int,int>>>& paths,std::vector<std::string>& map,std::pair<int,int>& zuobiao,std::pair<int,int>& destiny)
-{
-    int right_range = map[0].length(),left_range = 0,up_range = 0,down_range = map.size();
-
-    std::vector<std::pair<int,int>> p1 , around;
-    std::pair<int,int> now=zuobiao,up={zuobiao.first,zuobiao.second+1},right={zuobiao.first+1,zuobiao.second},left={zuobiao.first-1,zuobiao.second},down={zuobiao.first-1,zuobiao.second};
-    std::vector<std::string>& change_map = map;
-    around = {up,right,down,left};
-    while(now!=destiny)
-    {
-        up={now.first,now.second+1},right={now.first+1,now.second},left={now.first-1,now.second},down={now.first-1,now.second};
-        around = {up,right,down,left};
-        int allowed_dir[4] = {0,0,0,0},count = 0;
-        for(int i = 0;i<4;i++)
-        {   
-            if((around[i].first>right_range||around[i].first<left_range)||(around[i].second>down_range||around[i].second<up_range))
-            continue;
-            else
-            {
-                if(change_map[around[i].first][around[i].second]=='S'||'#'||'P'||'X')
-                continue;
-                allowed_dir[i]=1;
-                count++;
-            }
-        }
-        if(count == 0)
-        
-        
-    }
-    if(std::find(paths.begin(),paths.end(),p1)!=paths.end()&&now == destiny)
-    paths.push_back(p1);
-}
+// M1 的移动路线只使用整数方向：0=不动，1=上，2=右，3=下，4=左。
+// 路线放在 main() 内，便于初学者逐项检查每一步走到了哪一格。
 int main()
 {
     // 开一个窗口，并把刷新上限设成每秒 60 帧（下面主循环会解释"帧"是什么）。
@@ -125,10 +90,105 @@ int main()
     bool  enemyAlive = true;            // 是否还在场上（到终点或被消灭后变 false）
     float stepTimer  = 0.f;             // "走格计时器"：攒时间用，见下面主循环的说明
     const float STEP_TIME = 1.0f;       // 每走一格要花几秒（调大走得慢、调小走得快）
-    int direction = 0; // 0,1,2,3,4不动，上,右,下,左
-    std::vector<std::vector<int>> plans;
+    // 方向：0=不动，1=上，2=右，3=下，4=左。
+    int direction = 0;
+    std::size_t planIndex = 0;
+    using Cell = std::pair<int, int>;
+    const Cell start{2, 8};
+    const Cell goal{1, 0};
 
-    
+    // 只把 S、E 和道路 # 当作可通行格子。
+    auto walkable = [&](Cell p) {
+        return p.first >= 0 && p.first < static_cast<int>(map.size()) &&
+               p.second >= 0 && p.second < static_cast<int>(map[p.first].size()) &&
+               (map[p.first][p.second] == '#' || map[p.first][p.second] == 'S' ||
+                map[p.first][p.second] == 'E');
+    };
+    const std::vector<Cell> steps = {{-1, 0}, {0, 1}, {1, 0}, {0, -1}};
+
+    // BFS：不写死坐标，自动找任意地图上的最短路线。
+    auto shortestPath = [&](Cell from, Cell to) {
+        std::queue<Cell> q;
+        std::vector<std::vector<bool>> seen(map.size(), std::vector<bool>(map[0].size(), false));
+        std::vector<std::vector<Cell>> previous(map.size(), std::vector<Cell>(map[0].size(), {-1, -1}));
+        q.push(from);
+        seen[from.first][from.second] = true;
+        while (!q.empty()) {
+            Cell current = q.front(); q.pop();
+            if (current == to) break;
+            for (Cell step : steps) {
+                Cell next{current.first + step.first, current.second + step.second};
+                if (walkable(next) && !seen[next.first][next.second]) {
+                    seen[next.first][next.second] = true;
+                    previous[next.first][next.second] = current;
+                    q.push(next);
+                }
+            }
+        }
+        std::vector<Cell> path;
+        Cell current = to;
+        while (current != Cell{-1, -1}) {
+            path.push_back(current);
+            current = previous[current.first][current.second];
+        }
+        std::reverse(path.begin(), path.end());
+        return path;
+    };
+
+    auto appendPath = [](std::vector<Cell>& result, const std::vector<Cell>& part) {
+        if (part.empty()) return;
+        if (result.empty()) result = part;
+        else result.insert(result.end(), part.begin() + 1, part.end());
+    };
+
+    auto toDirections = [](const std::vector<Cell>& path) {
+        std::vector<int> result;
+        for (std::size_t i = 1; i < path.size(); ++i) {
+            int dr = path[i].first - path[i - 1].first;
+            int dc = path[i].second - path[i - 1].second;
+            result.push_back(dr == -1 ? 1 : dr == 1 ? 3 : dc == 1 ? 2 : 4);
+        }
+        return result;
+    };
+
+    // 任务 1：BFS 自动生成最短路线，不硬编码每一步方向。
+    const std::vector<Cell> shortest = shortestPath(start, goal);
+    const std::vector<int> task1Plan = toDirections(shortest);
+
+    // 任务 2：自动寻找地图中的第一个可通行 2×2 小环，绕两圈后再走最短路。
+    std::vector<Cell> task2Cells;
+    for (int r = 0; r + 1 < static_cast<int>(map.size()) && task2Cells.empty(); ++r)
+        for (int c = 0; c + 1 < static_cast<int>(map[r].size()); ++c)
+            if (walkable({r, c}) && walkable({r, c + 1}) && walkable({r + 1, c}) && walkable({r + 1, c + 1}))
+                task2Cells = {{r, c}, {r, c + 1}, {r + 1, c + 1}, {r + 1, c}, {r, c}};
+    std::vector<Cell> task2Path = shortestPath(start, task2Cells.front());
+    for (int round = 0; round < 2; ++round)
+        task2Path.insert(task2Path.end(), task2Cells.begin() + 1, task2Cells.end());
+    appendPath(task2Path, shortestPath(task2Cells.front(), goal));
+    const std::vector<int> task2Plan = toDirections(task2Path);
+
+    // 任务 3：DFS 遍历所有可达道路；回退边也加入路线，所以每个格子都会被访问。
+    std::vector<Cell> walkAll;
+    std::vector<std::vector<bool>> visited(map.size(), std::vector<bool>(map[0].size(), false));
+    std::function<void(Cell)> visit = [&](Cell current) {
+        visited[current.first][current.second] = true;
+        walkAll.push_back(current);
+        for (Cell step : steps) {
+            Cell next{current.first + step.first, current.second + step.second};
+            if (walkable(next) && !visited[next.first][next.second]) {
+                visit(next);
+                walkAll.push_back(current);
+            }
+        }
+    };
+    visit(start);
+    appendPath(walkAll, shortestPath(start, goal));
+    const std::vector<int> task3Plan = toDirections(walkAll);
+
+    // 当前默认运行任务 1；把 activeTask 改成 2 或 3 可分别验收另外两项。
+    const int activeTask = 1;
+    const std::vector<int>& plan = activeTask == 1 ? task1Plan : activeTask == 2 ? task2Plan : task3Plan;
+
     // ╔════════════════ 待完成：定义变量 ════════════════╗
     // 如果你需要定义额外变量来实现移动逻辑，就定义在这里
     // ╚════════════════ 定义变量到此为止 ════════════════╝
@@ -176,7 +236,6 @@ int main()
         {
             stepTimer += dt;                     // 把这一帧的时间攒进计时器
             shouldMove = (stepTimer >= STEP_TIME); // 攒够 1 秒 → 走一格
-            shouldMove = stepTimer>STEP_TIME;
         }
 
         if (shouldMove)
@@ -195,25 +254,19 @@ int main()
         if (shouldMove) // 进行移动
         {
             // ╔════════════════ 待完成：移动代码 ════════════════╗
+            if (planIndex < plan.size())
+                direction = plan[planIndex++];
+            else
+                direction = 0;
+
             switch (direction)
             {
-            case 1:
-                enemyRow--;
-                break;
-            case 2:
-                enemyCol++;
-                break;
-            case 3:
-                enemyRow++;
-                break;
-            case 4:
-                enemyCol--;
-                break;
-            default:
-                break;
+            case 1: --enemyRow; break;
+            case 2: ++enemyCol; break;
+            case 3: ++enemyRow; break;
+            case 4: --enemyCol; break;
+            default: break;
             }
-            plan.pop_back();
-            direction = plan[0];
             // ╚════════════════ 移动代码到此为止 ════════════════╝
         }
 
