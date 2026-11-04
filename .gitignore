@@ -1,0 +1,29 @@
+# ============ 构建产物 ============
+/build/
+*.exe
+*.obj
+*.o
+
+# ============ 第三方依赖 ============
+# SFML 源码（SFML-3.1.0/）已随仓库入库：锁定版本、离线可构建，不再靠 FetchContent 联网克隆。
+# 只忽略下载用的压缩包。
+/SFML-3.1.0.zip
+
+# ============ 大字体（系统自带 / 有版权，别入库）============
+# loadAnyFont 会自动回退到 C:/Windows/Fonts/msyh.ttc 等系统字体；assets/README.txt 说明怎么放
+assets/*.ttc
+assets/*.ttf
+
+# ============ 编辑器 / IDE ============
+/.vscode/
+/.vs/
+
+# ============ Claude Code 本地设置（个人/机器相关，不入库）============
+.claude/settings.local.json
+
+# ============ 对话 / 临时日志 ============
+*.jsonl
+
+# ============ 系统 ============
+Thumbs.db
+.DS_Store

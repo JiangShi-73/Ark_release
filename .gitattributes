@@ -1,0 +1,2 @@
+# Shell 脚本必须用 LF 换行，否则在 macOS/Linux 上 shebang 会因 \r 报错（bad interpreter）。
+*.sh text eol=lf
