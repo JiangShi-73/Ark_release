@@ -323,7 +323,7 @@ void alldeep_find(Cell now,
     board[now.first][now.second] = '1';
     else if(oldTile == '1')
     board[now.first][now.second] = '2';
-    else if(oldTile == '3')
+    else if(oldTile == '2')
     board[now.first][now.second] = '3';
     
 
