@@ -133,7 +133,7 @@ int main()
                 bestPath = candidate;
     } //不重复寻路取最短的一条
     circle(bestPath,Cell{1,5},Cell{2,7},2); //添加绕圈逻辑
-    
+
     std::vector<int> plan;
     for (std::size_t i = 1; i < bestPath.size(); ++i)
     {
@@ -280,7 +280,7 @@ bool allcanWalk(Cell cell, const std::vector<std::string>& board)
         return false;
 
     const char tile = board[cell.first][cell.second];
-    return tile == '#' || tile == 'S' || tile == 'E'||tile == '1';
+    return tile == '#' || tile == 'S' || tile == 'E'||tile == '1'||tile == '2';
 }
 
 void deep_find(Cell now,
@@ -323,16 +323,18 @@ void alldeep_find(Cell now,
     board[now.first][now.second] = '1';
     else if(oldTile == '1')
     board[now.first][now.second] = '2';
+    else if(oldTile == '3')
+    board[now.first][now.second] = '3';
     if (now == destination)
     {
-        allPaths.push_back(currentPath);
+        all=currentPath;
     }
     else
     {
         for (const Cell next : neighbor(now))
         {
             if (allcanWalk(next, board))
-                deep_find(next, destination, board, currentPath, allPaths);
+                alldeep_find(next, destination, board, currentPath, all);
         }
     }
 
