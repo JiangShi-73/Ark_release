@@ -125,15 +125,15 @@ int main()
     deep_find({2, 8}, {1, 0}, searchBoard, currentPath, allPaths);
 
     std::vector<Cell> bestPath;
-    if (!allPaths.empty())
-    {
-        bestPath = allPaths.front();
-        for (const auto& candidate : allPaths)
-            if (candidate.size() < bestPath.size())
-                bestPath = candidate;
-    } //不重复寻路取最短的一条
-    circle(bestPath,Cell{1,5},Cell{2,7},2); //添加绕圈逻辑
-
+    // if (!allPaths.empty())
+    // {
+    //     bestPath = allPaths.front();
+    //     for (const auto& candidate : allPaths)
+    //         if (candidate.size() < bestPath.size())
+    //             bestPath = candidate;
+    // } //不重复寻路取最短的一条
+    // circle(bestPath,Cell{1,5},Cell{2,7},2); //添加绕圈逻辑
+    alldeep_find({2, 8}, {1, 0}, searchBoard, currentPath, bestPath)
     std::vector<int> plan;
     for (std::size_t i = 1; i < bestPath.size(); ++i)
     {
@@ -325,9 +325,28 @@ void alldeep_find(Cell now,
     board[now.first][now.second] = '2';
     else if(oldTile == '3')
     board[now.first][now.second] = '3';
-    if (now == destination)
+    
+
+
+    if (now == destination )
     {
-        all=currentPath;
+        bool hasUnvisitedRoad = false;
+    for (const auto& row : board)
+    {
+        if (row.find('#') != std::string::npos)
+        {
+            hasUnvisitedRoad = true;
+            break;
+        }
+    }
+    // 没有未访问道路时，保存当前遍历路线并结束本次递归。
+    if (!hasUnvisitedRoad)
+    {
+        all = currentPath;
+        board[now.first][now.second] = oldTile;
+        currentPath.pop_back();
+        return;
+    }
     }
     else
     {
