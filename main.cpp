@@ -26,6 +26,7 @@
 #include <iostream>
 #include <algorithm>
 #include <random>
+#include <queue>
 
 
 
@@ -53,9 +54,20 @@ extern std::vector<std::vector<std::pair<int,int>>> paths;
 extern std::pair<int,int> zuobiao;
 extern std::pair<int,int> destiny;
 
-void deep_find(std::pair<int,int> now , std::vector<std::pair<int,int>> p1 = {});
-bool walkahead(std::pair<int,int> cell);
+using Cell = std::pair<int, int>;
+
+void deep_find(Cell now,
+               Cell destiny,
+               std::vector<std::string>& board,
+               std::vector<Cell>& currentPath,
+               std::vector<std::vector<Cell>>& allPaths);
+
 std::vector<std::pair<int,int>> neighbor(std::pair<int,int> zuobiao);
+
+void circle(std::vector<Cell>& path,
+            Cell p1,
+            Cell p2,
+            int num = 1);
 
 // ============================================================
 //  上半部分 · main()：游戏数据 + 你要写的代码
@@ -100,12 +112,20 @@ int main()
     int direction = 0; // 0,1,2,3,4不动，上,右,下,左
     std::vector<std::vector<int>> plans;
 
-    // 先递归枚举所有合法路线，再选择步数最少的一条。
-    deep_find(zuobiao);
-    std::vector<std::pair<int,int>> bestPath = paths.front();
-    for (const auto& path : paths)
-        if (path.size() < bestPath.size())
-            bestPath = path;
+    // 用局部副本搜索：递归会临时标记 board，但回溯后恢复，不污染原地图。
+    std::vector<std::string> searchBoard = map;
+    std::vector<Cell> currentPath;
+    std::vector<std::vector<Cell>> allPaths;
+    deep_find({2, 8}, {1, 0}, searchBoard, currentPath, allPaths);
+
+    std::vector<Cell> bestPath;
+    if (!allPaths.empty())
+    {
+        bestPath = allPaths.front();
+        for (const auto& candidate : allPaths)
+            if (candidate.size() < bestPath.size())
+                bestPath = candidate;
+    }
 
     std::vector<int> plan;
     for (std::size_t i = 1; i < bestPath.size(); ++i)
@@ -238,48 +258,96 @@ int fastRand(int lo, int hi)
     std::uniform_int_distribution<int> dist(lo, hi);
     return dist(gen);
 }
-void deep_find(std::pair<int,int> now, std::vector<std::pair<int,int>> p1 = {})
+bool canWalk(Cell cell, const std::vector<std::string>& board)
 {
-    p1.push_back(now);
-    char oldTile = change_map[now.first][now.second];
-    change_map[now.first][now.second] = 'X';
+    if (cell.first < 0 || cell.first >= static_cast<int>(board.size()) ||
+        cell.second < 0 || cell.second >= static_cast<int>(board[cell.first].size()))
+        return false;
 
-    if (now == destiny)
+    const char tile = board[cell.first][cell.second];
+    return tile == '#' || tile == 'S' || tile == 'E';
+}
+
+void deep_find(Cell now,
+               Cell destination,
+               std::vector<std::string>& board,
+               std::vector<Cell>& currentPath,
+               std::vector<std::vector<Cell>>& allPaths)
+{
+    currentPath.push_back(now);
+    const char oldTile = board[now.first][now.second];
+    board[now.first][now.second] = 'X';
+
+    if (now == destination)
     {
-        paths.push_back(p1);
+        allPaths.push_back(currentPath);
     }
     else
     {
-        for (const auto& next : neighbor(now))
+        for (const Cell next : neighbor(now))
         {
-            if (walkahead(next))
-                deep_find(next, p1);
+            if (canWalk(next, board))
+                deep_find(next, destination, board, currentPath, allPaths);
         }
     }
 
-    // 回溯：恢复入口、出口或道路原来的字符。
-    change_map[now.first][now.second] = oldTile;
-}
-bool walkahead(std::pair<int,int> cell)
-{
-    // 先用现有的行列范围判断，避免越界访问。
-    if (cell.first < left_range || cell.first >= down_range ||
-        cell.second < up_range || cell.second >= right_range)
-        return false;
-
-    char tile = change_map[cell.first][cell.second];
-    // S、E 和道路 # 可以走；P、. 和已经走过的 X 不能走。
-    return tile == '#' || tile == 'S' || tile == 'E';
-}
-std::vector<std::pair<int,int>> neighbor(std::pair<int,int> zuobiao)
-{
-    std::pair<int,int> up = {zuobiao.first - 1, zuobiao.second};
-    std::pair<int,int> right = {zuobiao.first, zuobiao.second + 1};
-    std::pair<int,int> down = {zuobiao.first + 1, zuobiao.second};
-    std::pair<int,int> left = {zuobiao.first, zuobiao.second - 1};
-    return {up, right, down, left};
+    // 回溯：只恢复这一次递归修改的格子。
+    board[now.first][now.second] = oldTile;
+    currentPath.pop_back();
 }
 
+
+std::vector<std::pair<int,int>> neighbor(std::pair<int,int> position)
+{
+    return {
+        {position.first - 1, position.second},
+        {position.first, position.second + 1},
+        {position.first + 1, position.second},
+        {position.first, position.second - 1}
+    };
+}
+
+void circle(std::vector<Cell>& path, Cell p1, Cell p2, int num)
+{
+    if (num <= 0)
+        return;
+
+    auto firstIt = std::find(path.begin(), path.end(), p1);
+    auto secondIt = std::find(path.begin(), path.end(), p2);
+    if (firstIt == path.end() || secondIt == path.end() || firstIt == secondIt)
+        return;
+
+    if (firstIt > secondIt)
+    {
+        std::swap(firstIt, secondIt);
+        std::swap(p1, p2);
+    }
+    //上面在调整p1,p2顺序
+    // 直接复用通用 deep_find，寻找 p1 到 p2 的所有合法路径。
+    std::vector<std::string> board = change_map;
+    std::vector<Cell> currentPath;
+    std::vector<std::vector<Cell>> allPaths;
+    deep_find(p1, p2, board, currentPath, allPaths);
+    if (allPaths.empty())
+        return;
+
+    std::vector<Cell> shortest = allPaths.front();
+    for (const auto& candidate : allPaths)
+        if (candidate.size() < shortest.size())
+            shortest = candidate;
+
+    // 构造 p1 -> ... -> p2 -> ... -> p1 的回路。
+    std::vector<Cell> loop;
+    for (int round = 0; round < num; ++round)
+    {
+        loop.insert(loop.end(), shortest.begin() + 1, shortest.end());
+        for (auto it = shortest.rbegin() + 1; it != shortest.rend(); ++it)
+            loop.push_back(*it);
+    }
+
+    // firstIt 仍指向原 path 的位置，插入点之前的迭代器不会失效。
+    path.insert(firstIt + 1, loop.begin(), loop.end());
+}
 // ============================================================
 //  下半部分 · 渲染引擎  【M1 学生完全跳过，别改】
 //  ----------------------------------------------------------
