@@ -48,57 +48,18 @@ void drawHud(sf::RenderWindow& win);
 void drawTopStatus(sf::RenderWindow& win, int enemiesTotal, int remainingEnemies, int life);
 void drawGameOver(sf::RenderWindow& win, bool victory);
 
+
+extern std::vector<std::vector<std::pair<int,int>>> paths;
+extern std::pair<int,int> zuobiao;
+extern std::pair<int,int> destiny;
+
+void deep_find(std::pair<int,int> now , std::vector<std::pair<int,int>> p1 = {});
+bool walkahead(std::pair<int,int> cell);
+std::vector<std::pair<int,int>> neighbor(std::pair<int,int> zuobiao);
+
 // ============================================================
 //  上半部分 · main()：游戏数据 + 你要写的代码
 // ============================================================
-std::vector<std::vector<std::pair<int,int>>> static paths;
-std::pair<int,int> zuobiao = {1,0};
-std::pair<int,int> destiny={2,8};
-int static right_range = map[0].length(),left_range = 0,up_range = 0,down_range = map.size();
-std::vector<std::string> change_map = {
-        ".PPPPPPP.",
-        "E#P#####.",
-        ".###P###S",
-        ".PPPPPPP.",
-    };
-int fastRand(int lo, int hi)
-{
-    static std::mt19937 gen(std::random_device{}());
-    std::uniform_int_distribution<int> dist(lo, hi);
-    return dist(gen);
-}
-void deep_find(std::pair<int,int> now , std::vector<std::pair<int,int>> p1 = {})
-    {
-        p1.push_back(now);
-        change_map[now.first][now.second] = 'X';
-        if(now == destiny)
-        paths.push_back(p1);
-        else
-        {
-        std::pair<int,int> up={now.first,now.second-1},right={now.first+1,now.second},left={now.first-1,now.second},down={now.first,now.second+1};
-        std::vector<std::pair<int,int>> around = {up,right,down,left};
-        for(std::pair<int,int> next : neighbor(now) )
-        {
-            if (walkahead(next))
-            {
-
-                deep_find(next,p1); // 继续往前走
-            }
-        }
-        }
-        p1.pop_back(); 
-        change_map[now.first][now.second] = '#';
-    }
-    bool walkahead(std::pair<int,int> cell)
-    {
-        return ((cell.first>right_range||cell.first<left_range)||(cell.second>down_range||cell.second<up_range))||change_map[cell.first][cell.second]=='S'||'P'||'X';
-    }
-    std::vector<std::pair<int,int>> neighbor(std::pair<int,int> zuobiao)
-{
-    std::pair<int,int> up={zuobiao.first,zuobiao.second+1},right={zuobiao.first+1,zuobiao.second},left={zuobiao.first-1,zuobiao.second},down={zuobiao.first-1,zuobiao.second};
-    std::vector<std::pair<int,int>> around = {up,right,down,left};
-    return around;
-}
 
 int main()
 {
@@ -139,7 +100,22 @@ int main()
     int direction = 0; // 0,1,2,3,4不动，上,右,下,左
     std::vector<std::vector<int>> plans;
 
-    
+    // 先递归枚举所有合法路线，再选择步数最少的一条。
+    deep_find(zuobiao);
+    std::vector<std::pair<int,int>> bestPath = paths.front();
+    for (const auto& path : paths)
+        if (path.size() < bestPath.size())
+            bestPath = path;
+
+    std::vector<int> plan;
+    for (std::size_t i = 1; i < bestPath.size(); ++i)
+    {
+        int dr = bestPath[i].first - bestPath[i - 1].first;
+        int dc = bestPath[i].second - bestPath[i - 1].second;
+        plan.push_back(dr == -1 ? 1 : dr == 1 ? 3 : dc == 1 ? 2 : 4);
+    }
+    std::size_t planIndex = 0;
+
     // ╔════════════════ 待完成：定义变量 ════════════════╗
     // 如果你需要定义额外变量来实现移动逻辑，就定义在这里
     // ╚════════════════ 定义变量到此为止 ════════════════╝
@@ -187,7 +163,6 @@ int main()
         {
             stepTimer += dt;                     // 把这一帧的时间攒进计时器
             shouldMove = (stepTimer >= STEP_TIME); // 攒够 1 秒 → 走一格
-            shouldMove = stepTimer>STEP_TIME;
         }
 
         if (shouldMove)
@@ -206,25 +181,19 @@ int main()
         if (shouldMove) // 进行移动
         {
             // ╔════════════════ 待完成：移动代码 ════════════════╗
+            if (planIndex < plan.size())
+                direction = plan[planIndex++];
+            else
+                direction = 0;
+
             switch (direction)
             {
-            case 1:
-                enemyRow--;
-                break;
-            case 2:
-                enemyCol++;
-                break;
-            case 3:
-                enemyRow++;
-                break;
-            case 4:
-                enemyCol--;
-                break;
-            default:
-                break;
+            case 1: --enemyRow; break;
+            case 2: ++enemyCol; break;
+            case 3: ++enemyRow; break;
+            case 4: --enemyCol; break;
+            default: break;
             }
-            plan.pop_back();
-            direction = plan[0];
             // ╚════════════════ 移动代码到此为止 ════════════════╝
         }
 
@@ -247,6 +216,69 @@ int main()
     return 0;
 }
 
+std::vector<std::vector<std::pair<int,int>>> static paths;
+std::pair<int,int> zuobiao = {2,8};   // S：出入口
+std::pair<int,int> destiny = {1,0};  // E：基地
+std::vector<std::string> change_map = {
+        ".PPPPPPP.",
+        "E#P#####.",
+        ".###P###S",
+        ".PPPPPPP.",
+    };
+
+// 范围：first 是行，second 是列；上/左边界为 0，右/下边界取地图尺寸。
+int right_range = static_cast<int>(change_map[0].size());
+int left_range = 0;
+int up_range = 0;
+int down_range = static_cast<int>(change_map.size());
+
+int fastRand(int lo, int hi)
+{
+    static std::mt19937 gen(std::random_device{}());
+    std::uniform_int_distribution<int> dist(lo, hi);
+    return dist(gen);
+}
+void deep_find(std::pair<int,int> now, std::vector<std::pair<int,int>> p1 = {})
+{
+    p1.push_back(now);
+    char oldTile = change_map[now.first][now.second];
+    change_map[now.first][now.second] = 'X';
+
+    if (now == destiny)
+    {
+        paths.push_back(p1);
+    }
+    else
+    {
+        for (const auto& next : neighbor(now))
+        {
+            if (walkahead(next))
+                deep_find(next, p1);
+        }
+    }
+
+    // 回溯：恢复入口、出口或道路原来的字符。
+    change_map[now.first][now.second] = oldTile;
+}
+bool walkahead(std::pair<int,int> cell)
+{
+    // 先用现有的行列范围判断，避免越界访问。
+    if (cell.first < left_range || cell.first >= down_range ||
+        cell.second < up_range || cell.second >= right_range)
+        return false;
+
+    char tile = change_map[cell.first][cell.second];
+    // S、E 和道路 # 可以走；P、. 和已经走过的 X 不能走。
+    return tile == '#' || tile == 'S' || tile == 'E';
+}
+std::vector<std::pair<int,int>> neighbor(std::pair<int,int> zuobiao)
+{
+    std::pair<int,int> up = {zuobiao.first - 1, zuobiao.second};
+    std::pair<int,int> right = {zuobiao.first, zuobiao.second + 1};
+    std::pair<int,int> down = {zuobiao.first + 1, zuobiao.second};
+    std::pair<int,int> left = {zuobiao.first, zuobiao.second - 1};
+    return {up, right, down, left};
+}
 
 // ============================================================
 //  下半部分 · 渲染引擎  【M1 学生完全跳过，别改】
