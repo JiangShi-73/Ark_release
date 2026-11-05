@@ -61,7 +61,13 @@ void deep_find(Cell now,
                std::vector<std::string>& board,
                std::vector<Cell>& currentPath,
                std::vector<std::vector<Cell>>& allPaths);
-
+void alldeep_find(Cell now,
+               Cell destination,
+               std::vector<std::string>& board,
+               std::vector<Cell>& currentPath,
+               std::vector<Cell>& all);
+bool canWalk(Cell cell, const std::vector<std::string>& board);
+bool allcanWalk(Cell cell, const std::vector<std::string>& board);
 std::vector<std::pair<int,int>> neighbor(std::pair<int,int> zuobiao);
 
 void circle(std::vector<Cell>& path,
@@ -125,8 +131,9 @@ int main()
         for (const auto& candidate : allPaths)
             if (candidate.size() < bestPath.size())
                 bestPath = candidate;
-    }
-
+    } //不重复寻路取最短的一条
+    circle(bestPath,Cell{1,5},Cell{2,7},2); //添加绕圈逻辑
+    
     std::vector<int> plan;
     for (std::size_t i = 1; i < bestPath.size(); ++i)
     {
@@ -236,7 +243,6 @@ int main()
     return 0;
 }
 
-std::vector<std::vector<std::pair<int,int>>> static paths;
 std::pair<int,int> zuobiao = {2,8};   // S：出入口
 std::pair<int,int> destiny = {1,0};  // E：基地
 std::vector<std::string> change_map = {
@@ -267,6 +273,15 @@ bool canWalk(Cell cell, const std::vector<std::string>& board)
     const char tile = board[cell.first][cell.second];
     return tile == '#' || tile == 'S' || tile == 'E';
 }
+bool allcanWalk(Cell cell, const std::vector<std::string>& board)
+{
+    if (cell.first < 0 || cell.first >= static_cast<int>(board.size()) ||
+        cell.second < 0 || cell.second >= static_cast<int>(board[cell.first].size()))
+        return false;
+
+    const char tile = board[cell.first][cell.second];
+    return tile == '#' || tile == 'S' || tile == 'E'||tile == '1';
+}
 
 void deep_find(Cell now,
                Cell destination,
@@ -287,6 +302,36 @@ void deep_find(Cell now,
         for (const Cell next : neighbor(now))
         {
             if (canWalk(next, board))
+                deep_find(next, destination, board, currentPath, allPaths);
+        }
+    }
+
+    // 回溯：只恢复这一次递归修改的格子。
+    board[now.first][now.second] = oldTile;
+    currentPath.pop_back();
+}
+
+void alldeep_find(Cell now,
+               Cell destination,
+               std::vector<std::string>& board,
+               std::vector<Cell>& currentPath,
+               std::vector<Cell>& all)
+{
+    currentPath.push_back(now);
+    const char oldTile = board[now.first][now.second];
+    if(oldTile == '#')
+    board[now.first][now.second] = '1';
+    else if(oldTile == '1')
+    board[now.first][now.second] = '2';
+    if (now == destination)
+    {
+        allPaths.push_back(currentPath);
+    }
+    else
+    {
+        for (const Cell next : neighbor(now))
+        {
+            if (allcanWalk(next, board))
                 deep_find(next, destination, board, currentPath, allPaths);
         }
     }
@@ -328,21 +373,39 @@ void circle(std::vector<Cell>& path, Cell p1, Cell p2, int num)
     std::vector<Cell> currentPath;
     std::vector<std::vector<Cell>> allPaths;
     deep_find(p1, p2, board, currentPath, allPaths);
-    if (allPaths.empty())
+    if (allPaths.size()<2)
         return;
 
     std::vector<Cell> shortest = allPaths.front();
-    for (const auto& candidate : allPaths)
-        if (candidate.size() < shortest.size())
-            shortest = candidate;
+    std::vector<Cell> secondSHORT;
 
+    for (const auto& candidate : allPaths)
+    {
+        if (candidate.size() < shortest.size())
+        {
+        shortest = candidate;
+        }
+    }
+
+    for (const auto& candidate : allPaths)
+    {
+        if (candidate != shortest &&
+             (secondSHORT.empty() ||
+              candidate.size() < secondSHORT.size()))
+         {
+             secondSHORT = candidate;
+          }
+}
+
+    if (secondSHORT.empty())
+        secondSHORT = shortest;
+    std::reverse(secondSHORT.begin(),secondSHORT.end());
     // 构造 p1 -> ... -> p2 -> ... -> p1 的回路。
     std::vector<Cell> loop;
     for (int round = 0; round < num; ++round)
     {
         loop.insert(loop.end(), shortest.begin() + 1, shortest.end());
-        for (auto it = shortest.rbegin() + 1; it != shortest.rend(); ++it)
-            loop.push_back(*it);
+        loop.insert(loop.end(),secondSHORT.begin()+1,secondSHORT.end());
     }
 
     // firstIt 仍指向原 path 的位置，插入点之前的迭代器不会失效。
