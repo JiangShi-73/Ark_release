@@ -51,68 +51,55 @@ void drawGameOver(sf::RenderWindow& win, bool victory);
 // ============================================================
 //  上半部分 · main()：游戏数据 + 你要写的代码
 // ============================================================
+std::vector<std::vector<std::pair<int,int>>> static paths;
+std::pair<int,int> zuobiao = {1,0};
+std::pair<int,int> destiny={2,8};
+int static right_range = map[0].length(),left_range = 0,up_range = 0,down_range = map.size();
+std::vector<std::string> change_map = {
+        ".PPPPPPP.",
+        "E#P#####.",
+        ".###P###S",
+        ".PPPPPPP.",
+    };
 int fastRand(int lo, int hi)
 {
     static std::mt19937 gen(std::random_device{}());
     std::uniform_int_distribution<int> dist(lo, hi);
     return dist(gen);
 }
-void generate_path(std::vector<std::vector<std::pair<int,int>>>& paths,std::vector<std::string>& map,std::pair<int,int>& zuobiao,std::pair<int,int>& destiny)
-{
-    int right_range = map[0].length(),left_range = 0,up_range = 0,down_range = map.size();
-
-    std::vector<std::pair<int,int>> p1 , around;
-    std::pair<int,int> now=zuobiao,up={zuobiao.first,zuobiao.second+1},right={zuobiao.first+1,zuobiao.second},left={zuobiao.first-1,zuobiao.second},down={zuobiao.first-1,zuobiao.second};
-    std::vector<std::string>& change_map = map;
-    around = {up,right,down,left};
-    void deep_find(std::pair<int,int>& zuobiao,std::pair<int,int>& destiny,std::vector<std::string>& map,std::vector<std::pair<int,int>> possible)
+void deep_find(std::pair<int,int> now , std::vector<std::pair<int,int>> p1 = {})
     {
-        if(std::find(paths.begin(),paths.end(),p1)!=paths.end()&&now == destiny)
+        p1.push_back(now);
+        change_map[now.first][now.second] = 'X';
+        if(now == destiny)
         paths.push_back(p1);
         else
         {
-        up={now.first,now.second-1},right={now.first+1,now.second},left={now.first-1,now.second},down={now.first,now.second+1};
-        around = {up,right,down,left};
-        std::vector<std::pair<int,int>> v1;
-        for(int i = 0;i<4;i++)
-        {   
-            if((around[i].first>right_range||around[i].first<left_range)||(around[i].second>down_range||around[i].second<up_range))
-            continue;
-            else
+        std::pair<int,int> up={now.first,now.second-1},right={now.first+1,now.second},left={now.first-1,now.second},down={now.first,now.second+1};
+        std::vector<std::pair<int,int>> around = {up,right,down,left};
+        for(std::pair<int,int> next : neighbor(now) )
+        {
+            if (walkahead(next))
             {
-                auto dot =change_map[around[i].first][around[i].second];
-                if(dot=='S'||dot=='#'||dot=='P'||dot=='X')
-                continue;
-                v1.push_back(around[i]);
-                
+
+                deep_find(next,p1); // 继续往前走
             }
         }
-        
         }
+        p1.pop_back(); 
+        change_map[now.first][now.second] = '#';
     }
-    while(now!=destiny)
+    bool walkahead(std::pair<int,int> cell)
     {
-        up={now.first,now.second+1},right={now.first+1,now.second},left={now.first-1,now.second},down={now.first-1,now.second};
-        around = {up,right,down,left};
-        int allowed_dir[4] = {0,0,0,0},count = 0;
-        for(int i = 0;i<4;i++)
-        {   
-            if((around[i].first>right_range||around[i].first<left_range)||(around[i].second>down_range||around[i].second<up_range))
-            continue;
-            else
-            {
-                if(change_map[around[i].first][around[i].second]=='S'||'#'||'P'||'X')
-                continue;
-                allowed_dir[i]=1;
-                count++;
-            }
-        }
-        if(count == 0)
-        
-        
+        return ((cell.first>right_range||cell.first<left_range)||(cell.second>down_range||cell.second<up_range))||change_map[cell.first][cell.second]=='S'||'P'||'X';
     }
-    
+    std::vector<std::pair<int,int>> neighbor(std::pair<int,int> zuobiao)
+{
+    std::pair<int,int> up={zuobiao.first,zuobiao.second+1},right={zuobiao.first+1,zuobiao.second},left={zuobiao.first-1,zuobiao.second},down={zuobiao.first-1,zuobiao.second};
+    std::vector<std::pair<int,int>> around = {up,right,down,left};
+    return around;
 }
+
 int main()
 {
     // 开一个窗口，并把刷新上限设成每秒 60 帧（下面主循环会解释"帧"是什么）。
