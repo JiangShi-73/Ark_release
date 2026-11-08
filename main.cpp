@@ -133,7 +133,7 @@ int main()
     //             bestPath = candidate;
     // } //不重复寻路取最短的一条
     // circle(bestPath,Cell{1,5},Cell{2,7},2); //添加绕圈逻辑
-    alldeep_find({2, 8}, {1, 0}, searchBoard, currentPath, bestPath)
+    alldeep_find({2, 8}, {1, 0}, searchBoard, currentPath, bestPath);;
     std::vector<int> plan;
     for (std::size_t i = 1; i < bestPath.size(); ++i)
     {
@@ -317,47 +317,47 @@ void alldeep_find(Cell now,
                std::vector<Cell>& currentPath,
                std::vector<Cell>& all)
 {
+    const bool isRoot = currentPath.empty();
     currentPath.push_back(now);
+
     const char oldTile = board[now.first][now.second];
-    if(oldTile == '#')
-    board[now.first][now.second] = '1';
-    else if(oldTile == '1')
-    board[now.first][now.second] = '2';
-    else if(oldTile == '2')
-    board[now.first][now.second] = '3';
-    
+    if (oldTile == '#')
+        board[now.first][now.second] = '1';
 
+    // DFS 只进入尚未访问的道路；回溯时把返回岔路口加入真实路线。
+    for (const Cell next : neighbor(now))
+    {
+        if (next.first < 0 || next.first >= static_cast<int>(board.size()) ||
+            next.second < 0 || next.second >= static_cast<int>(board[next.first].size()))
+            continue;
 
-    if (now == destination )
-    {
-        bool hasUnvisitedRoad = false;
-    for (const auto& row : board)
-    {
-        if (row.find('#') != std::string::npos)
+        if (board[next.first][next.second] == '#')
         {
-            hasUnvisitedRoad = true;
-            break;
+            alldeep_find(next, destination, board, currentPath, all);
+            currentPath.push_back(now); // 实际移动：从分支回到岔路口
         }
     }
-    // 没有未访问道路时，保存当前遍历路线并结束本次递归。
-    if (!hasUnvisitedRoad)
+
+    if (isRoot)
     {
+        // 所有道路分支都遍历完后，才从最后位置寻找终点。
+        std::vector<std::string> goalBoard = change_map;
+        std::vector<Cell> goalPath;
+        std::vector<std::vector<Cell>> goalPaths;
+        deep_find(now, destination, goalBoard, goalPath, goalPaths);
+
         all = currentPath;
-        board[now.first][now.second] = oldTile;
-        currentPath.pop_back();
-        return;
-    }
-    }
-    else
-    {
-        for (const Cell next : neighbor(now))
+        if (!goalPaths.empty())
         {
-            if (allcanWalk(next, board))
-                alldeep_find(next, destination, board, currentPath, all);
+            auto shortestGoal = goalPaths.front();
+            for (const auto& candidate : goalPaths)
+                if (candidate.size() < shortestGoal.size())
+                    shortestGoal = candidate;
+
+            all.insert(all.end(), shortestGoal.begin() + 1, shortestGoal.end());
         }
     }
 
-    // 回溯：只恢复这一次递归修改的格子。
     board[now.first][now.second] = oldTile;
     currentPath.pop_back();
 }
