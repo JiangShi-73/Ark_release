@@ -90,7 +90,9 @@ int operatorCost(int op)
 // 如果格子上有干员，返回 true；否则返回 false。
 bool isCellOccupied(int row, int col)
 {
-    //请补充代码，必要时可删掉下一行
+    for (int op = 0; op < OP_COUNTS; ++op)
+        if (onField[op] && opRow[op] == row && opCol[op] == col)
+            return true;
     return false;
 }
 
@@ -99,23 +101,40 @@ bool isCellOccupied(int row, int col)
 // 如果能放，返回 true；否则返回 false（地形不对、越界都算不对）。
 bool canPlaceHere(int row, int col, int op)
 {
-    //请补充代码，必要时可删掉下一行
-    return false;
+    if (op < 0 || op >= OP_COUNTS) return false;                 // 干员编号越界
+    if (row < 0 || row >= GRID_H || col < 0 || col >= GRID_W) return false; // 格子越界
+
+    const char tile = map[row][col];
+
+    if (OP_ROLE[op] == OP_DEFENDER)
+        return tile == '#';   // 重装（近战）：只能站在地面道路上
+    return tile == 'P';       // 狙击 / 术师（远程）：只能站在高台
 }
 
 // ★任务(3) 上场：让编号 op 的干员上场，落在 (row,col)。
 // 更新 onField / opRow / opCol 三个数组，表示它已经在场上了，并记录位置。
 void placeOperator(int row, int col, int op)
 {
-    //请补充代码
+    if (op < 0 || op >= OP_COUNTS) return;
+
+    onField[op] = true;   // 该干员已上场
+    opRow[op]   = row;    // 记录站位
+    opCol[op]   = col;
 }
 
 // ★任务(4) 部署主逻辑：尝试在 (row,col) 放下编号 op 的干员。
 //  该干员尚未被部署 + 地形合法 + 该格没人 + 部署费用够 → 放下并扣费、返回 true；否则返回 false（不扣费）。
 bool tryPlaceOperator(int row, int col, int op)
 {
-    //请补充代码，必要时可删掉下一行
-    return false;
+    if (op < 0 || op >= OP_COUNTS)  return false;   // 编号越界
+    if (isOpDeployed(op))           return false;   // 同一干员只能有一个在场
+    if (!canPlaceHere(row, col, op)) return false;  // 地形不对（重装只能地面，远程只能高台）
+    if (isCellOccupied(row, col))   return false;   // 该格已经有人
+    if (dp < operatorCost(op))      return false;   // 费用不够
+
+    dp -= operatorCost(op);        // 扣费用
+    placeOperator(row, col, op);   // 真正上场
+    return true;
 }
 
 
@@ -123,8 +142,17 @@ bool tryPlaceOperator(int row, int col, int op)
 // 需要修改的信息数组包括opCooldown / onField等
 bool retreatOperatorAt(int row, int col)
 {
-    //请补充代码，必要时可删掉下一行
-    return false;
+    for (int op = 0; op < OP_COUNTS; ++op)
+    {
+        if (!onField[op] || opRow[op] != row || opCol[op] != col)
+            continue;                      // 这个干员不在这一格
+
+        dp += operatorCost(op) / 2;        // 返还一半部署费用
+        opCooldown[op] = DEPLOY_COOLDOWN;  // 进入再部署冷却
+        onField[op] = false;               // 下场
+        return true;
+    }
+    return false;                          // 这一格没有干员
 }
 
 
@@ -169,6 +197,13 @@ int selectedOp = -1;      // 当前选中的干员卡（-1 = 未选）
 
 int   retreatRow = -1, retreatCol = -1;          // 正弹出撤退按钮的干员所在格（-1 = 没有）
 
+// —— 拖拽部署（Vibe Coding 扩展）：按住干员卡拖到棋盘格子上松手即可部署 ——
+int          dragOp      = -1;                   // 正在拖的干员编号（-1 = 没在拖）
+bool         dragging    = false;                // 是否已真正进入"拖动"（移动超过阈值）
+sf::Vector2f dragStartPos{0.f, 0.f};             // 按下时鼠标的位置
+sf::Vector2f dragPos{0.f, 0.f};                  // 当前鼠标位置（画拖拽贴图用）
+const float  DRAG_START_DIST = 8.f;              // 按下后移动多少像素才算"拖动"
+
 // ---------- 资源（引擎用，请勿修改）----------
 sf::Font    font;
 bool        hasFont = false;
@@ -198,6 +233,7 @@ void drawRetreatButton(sf::RenderWindow& win);
 void drawTopStatus(sf::RenderWindow& win);
 void drawHud(sf::RenderWindow& win);
 void drawDeployPanel(sf::RenderWindow& win);
+void drawDragging(sf::RenderWindow& win);
 void drawGameOver(sf::RenderWindow& win);
 
 // ---------- 每帧更新（引擎调用）：DP 回升 + 敌人移动 + 判胜负 ----------
@@ -260,6 +296,9 @@ int main()
                     float mx = float(mb->position.x);
                     float my = float(mb->position.y);
 
+                    dragOp = -1;            // 任何新的按下都先清掉上一次的拖拽状态
+                    dragging = false;
+
                     // 1) 撤退按钮正弹着且点在按钮上 → 确认撤退（移走干员 + 进入再部署冷却）
                     if (retreatRow >= 0 &&
                         retreatButtonRect(retreatRow, retreatCol).contains(sf::Vector2f{mx, my}))
@@ -276,6 +315,10 @@ int main()
                             {
                                 selectedOp = op;
                                 retreatRow = retreatCol = -1;
+                                // 按在卡上：先记成"可能开始拖动"，等鼠标真的移动了再确认
+                                dragOp = op;
+                                dragStartPos = sf::Vector2f{mx, my};
+                                dragPos      = sf::Vector2f{mx, my};
                                 hitCard = true;
                                 break;
                             }
@@ -308,6 +351,49 @@ int main()
                     }
                 }
             }
+
+            // 鼠标移动：更新拖拽位置；离按下点足够远才正式进入"拖动"状态
+            if (const auto* mm = event->getIf<sf::Event::MouseMoved>())
+            {
+                dragPos = sf::Vector2f{float(mm->position.x), float(mm->position.y)};
+
+                if (dragOp >= 0 && !dragging)
+                {
+                    float dx = dragPos.x - dragStartPos.x;
+                    float dy = dragPos.y - dragStartPos.y;
+                    if (dx * dx + dy * dy >= DRAG_START_DIST * DRAG_START_DIST)
+                        dragging = true;      // 移动够了 → 由"点选"变成"拖动"
+                }
+            }
+
+            // 鼠标松开：如果之前是在拖动，就把干员放到松手所在的格子上
+            if (const auto* mr = event->getIf<sf::Event::MouseButtonReleased>())
+            {
+                if (mr->button == sf::Mouse::Button::Left && dragOp >= 0 && dragging)
+                {
+                    float mx = float(mr->position.x);
+                    float my = float(mr->position.y);
+
+                    if (!gameOver && mx >= 0.f && mx < BOARD_W && my >= 0.f && my < BOARD_H)
+                    {
+                        int col = int(mx / CELL_W);
+                        int row = int(my / CELL_H);
+
+                        if (!isOpDeployed(dragOp) &&
+                            opCooldown[dragOp] <= 0.f &&
+                            tryPlaceOperator(row, col, dragOp))
+                            selectedOp = -1;      // 部署成功 → 取消选中
+                    }
+
+                    dragOp = -1;                  // 松手后本次拖拽结束
+                    dragging = false;
+                }
+                else if (mr->button == sf::Mouse::Button::Left)
+                {
+                    dragOp = -1;                  // 只是点了一下，没有拖动
+                    dragging = false;
+                }
+            }
         }
 
         float dt = clock.restart().asSeconds();
@@ -325,6 +411,7 @@ int main()
         drawTopStatus(window);             // 顶部居中：进度 + 生命
         drawHud(window);
         drawDeployPanel(window);
+        drawDragging(window);              // 拖拽中的干员贴图 + 落点高亮，画在最上层
         if (gameOver) drawGameOver(window);
         window.display();
     }
@@ -813,5 +900,58 @@ void drawDeployPanel(sf::RenderWindow& win)
         t.setOrigin(sf::Vector2f{b.position.x + b.size.x, b.position.y + b.size.y / 2.f});  // 右-中对齐
         t.setPosition(sf::Vector2f{iconX - 8.f, midY});
         win.draw(t);
+    }
+}
+
+// ---------- 拖拽部署的绘制（Vibe Coding 扩展）----------
+// 拖动过程中：在鼠标所在格画一个"能不能放"的高亮框，并让干员贴图跟着鼠标走。
+void drawDragging(sf::RenderWindow& win)
+{
+    if (dragOp < 0 || !dragging) return;
+
+    const float mx = dragPos.x;
+    const float my = dragPos.y;
+
+    // 1) 鼠标在棋盘里 → 高亮落点格子：绿 = 可以放，红 = 不可以放
+    if (mx >= 0.f && mx < BOARD_W && my >= 0.f && my < BOARD_H)
+    {
+        int col = int(mx / CELL_W);
+        int row = int(my / CELL_H);
+
+        bool ok = !isOpDeployed(dragOp)
+               && opCooldown[dragOp] <= 0.f
+               && dp >= operatorCost(dragOp)
+               && canPlaceHere(row, col, dragOp)
+               && !isCellOccupied(row, col);
+
+        sf::RectangleShape hl(sf::Vector2f{CELL_W, CELL_H});
+        hl.setPosition(sf::Vector2f{col * CELL_W, row * CELL_H});
+        hl.setFillColor(ok ? sf::Color(80, 220, 120, 90) : sf::Color(230, 80, 80, 90));
+        hl.setOutlineThickness(-3.f);
+        hl.setOutlineColor(ok ? sf::Color(120, 255, 160) : sf::Color(255, 120, 120));
+        win.draw(hl);
+    }
+
+    // 2) 跟着鼠标走的干员贴图（半透明，表示"还没放下"）
+    const float w = CELL_W * 0.9f;
+    const float h = CELL_H * 0.9f;
+
+    if (hasOpModel[dragOp])
+    {
+        sf::Sprite sp(opModelTex[dragOp]);
+        sf::Vector2u ts = opModelTex[dragOp].getSize();
+        sp.setScale(sf::Vector2f{w / float(ts.x), h / float(ts.y)});
+        sp.setPosition(sf::Vector2f{mx - w / 2.f, my - h / 2.f});
+        sp.setColor(sf::Color(255, 255, 255, 210));
+        win.draw(sp);
+    }
+    else
+    {
+        sf::RectangleShape r(sf::Vector2f{w, h});
+        r.setPosition(sf::Vector2f{mx - w / 2.f, my - h / 2.f});
+        sf::Color c = operatorColor(dragOp);
+        c.a = 210;
+        r.setFillColor(c);
+        win.draw(r);
     }
 }
